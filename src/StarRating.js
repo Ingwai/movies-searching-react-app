@@ -21,6 +21,7 @@ const StarRating = ({
 }) => {
 	const [rating, setRating] = useState(defaultRating);
 	let [tempRating, setTempRating] = useState(0);
+
 	const handleRating = rating => {
 		setRating(rating);
 		onSetRating(rating);

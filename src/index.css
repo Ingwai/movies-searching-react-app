@@ -164,7 +164,9 @@ body {
 }
 
 .list.list-movies li:hover {
-	background-color: var(--color-background-100);
+	background-color: rgba(255, 255, 255, 0.5);
+	color: black;
+	/* background-color: var(--color-background-100); */
 }
 
 .list img {

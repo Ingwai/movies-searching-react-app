@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import StarRating from './StarRating';
 
 const average = arr => arr.reduce((acc, cur, i, arr) => acc + cur / arr.length, 0);
@@ -8,24 +8,17 @@ const KEY = '1315b1c1';
 export default function App() {
 	const [query, setQuery] = useState('');
 	const [movies, setMovies] = useState([]);
-	const [watched, setWatched] = useState([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState('');
 	const [selectedId, setSelectedId] = useState(null);
-
-	// useEffect(() => {
-	// 	console.log('Only first render');
-	// }, []);
-
-	// useEffect(() => {
-	// 	console.log('After render');
-	// });
-
-	// useEffect(() => {
-	// 	console.log('D');
-	// }, [query]);
-
-	// console.log('During render');
+	// const [watched, setWatched] = useState([]);
+	// ustawienie stanu początkowego przez callbacka przekazanego w useState
+	// nie powinniśmy wywoływać funkcji w useState np tak useState(localStorage.getItem('watched'))
+	// tylko tak
+	const [watched, setWatched] = useState(() => {
+		const storedValue = JSON.parse(localStorage.getItem('watched'));
+		return storedValue;
+	});
 
 	const handleSelectMovie = id => {
 		setSelectedId(selectedId => (id === selectedId ? null : id));
@@ -37,11 +30,16 @@ export default function App() {
 
 	const handleAddWatched = movie => {
 		setWatched(watched => [...watched, movie]);
+		// localStorage.setItem('watched', JSON.stringify([...watched, movie]));
 	};
 
 	const handleDeleteWatched = id => {
 		setWatched(watched => watched.filter(movie => movie.imdbID !== id));
 	};
+
+	useEffect(() => {
+		localStorage.setItem('watched', JSON.stringify(watched));
+	}, [watched]);
 
 	useEffect(() => {
 		const controller = new AbortController();
@@ -143,9 +141,31 @@ const Logo = () => {
 };
 
 const Search = ({ query, setQuery }) => {
+	const inputEl = useRef(null);
+	// zeby korzystać z useRef musimy użyć useEffect źeby zanmonoweć komponent który zawiera element DOM
+	useEffect(() => {
+		function callback(e) {
+			if (document.activeElement === inputEl.current) return;
+			if (e.code === 'Enter') {
+				inputEl.current.focus();
+				setQuery('');
+			}
+		}
+
+		document.addEventListener('keydown', callback);
+
+		return () => document.removeEventListener('keydown', callback);
+	}, [setQuery]);
+
+	// useEffect(() => {
+	// 	const el = document.querySelector('.search');
+	// 	el.focus();
+	// }, []);
+
 	return (
 		<input
 			className='search'
+			ref={inputEl}
 			type='text'
 			placeholder='Search movies...'
 			value={query}
@@ -178,24 +198,6 @@ const Box = ({ children }) => {
 	);
 };
 
-// const WatchedBox = () => {
-// 	const [isOpen2, setIsOpen2] = useState(true);
-// 	const [watched, setWatched] = useState(tempWatchedData);
-// 	return (
-// 		<div className='box'>
-// 			<button className='btn-toggle' onClick={() => setIsOpen2(open => !open)}>
-// 				{isOpen2 ? '–' : '+'}
-// 			</button>
-// 			{isOpen2 && (
-// 				<>
-// 					<WatchedSummary watched={watched} />
-// 					<WatchedMovieList watched={watched} />
-// 				</>
-// 			)}
-// 		</div>
-// 	);
-// };
-
 const MovieList = ({ movies, onSelectMovie }) => {
 	return (
 		<ul className='list list-movies'>
@@ -226,6 +228,12 @@ const MovieDetails = ({ selectedId, onCloseMovie, onAddWatched, watched }) => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [userRating, setUserRating] = useState('');
 
+	const countRef = useRef(0);
+
+	useEffect(() => {
+		if (userRating) countRef.current++;
+	}, [userRating]);
+
 	const isWatched = watched.map(movie => movie.imdbID).includes(selectedId);
 	const watchedUserRating = watched.find(movie => movie.imdbID === selectedId)?.userRating;
 
@@ -251,6 +259,7 @@ const MovieDetails = ({ selectedId, onCloseMovie, onAddWatched, watched }) => {
 			imdbRating: Number(imdbRating),
 			runtime: Number(runtime.split(' ').at(0)),
 			userRating,
+			countRatingDecision: countRef.current,
 		};
 		onAddWatched(newWatchedMovie);
 		onCloseMovie();

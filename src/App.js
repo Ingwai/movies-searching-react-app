@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import StarRating from './StarRating';
+import { useMovies } from './useMovies';
+import { useLocalStorage } from './useLocalStorage';
+import { useKey } from './useKey';
 
 const average = arr => arr.reduce((acc, cur, i, arr) => acc + cur / arr.length, 0);
 
@@ -7,26 +10,19 @@ const KEY = '1315b1c1';
 
 export default function App() {
 	const [query, setQuery] = useState('');
-	const [movies, setMovies] = useState([]);
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState('');
 	const [selectedId, setSelectedId] = useState(null);
-	// const [watched, setWatched] = useState([]);
-	// ustawienie stanu początkowego przez callbacka przekazanego w useState
-	// nie powinniśmy wywoływać funkcji w useState np tak useState(localStorage.getItem('watched'))
-	// tylko tak
-	const [watched, setWatched] = useState(() => {
-		const storedValue = JSON.parse(localStorage.getItem('watched'));
-		return storedValue;
-	});
+
+	const { movies, isLoading, error } = useMovies(query, handleCloseMovie);
+
+	const [watched, setWatched] = useLocalStorage([], 'watched');
 
 	const handleSelectMovie = id => {
 		setSelectedId(selectedId => (id === selectedId ? null : id));
 	};
 
-	const handleCloseMovie = () => {
+	function handleCloseMovie() {
 		setSelectedId(null);
-	};
+	}
 
 	const handleAddWatched = movie => {
 		setWatched(watched => [...watched, movie]);
@@ -36,50 +32,6 @@ export default function App() {
 	const handleDeleteWatched = id => {
 		setWatched(watched => watched.filter(movie => movie.imdbID !== id));
 	};
-
-	useEffect(() => {
-		localStorage.setItem('watched', JSON.stringify(watched));
-	}, [watched]);
-
-	useEffect(() => {
-		const controller = new AbortController();
-
-		async function fetchMovies() {
-			try {
-				setIsLoading(true);
-				setError('');
-				const res = await fetch(`http://www.omdbapi.com/?apikey=${KEY}&s=${query}`, { signal: controller.signal });
-
-				if (!res.ok) {
-					throw new Error('Something went wrong.');
-				}
-
-				const data = await res.json();
-
-				if (data.Response === 'False') throw new Error('Movie not found!');
-				setMovies(data.Search);
-				setError('');
-			} catch (err) {
-				console.error(err.message);
-				if (err.name !== 'AbortError') {
-					setError(err.message);
-				}
-			} finally {
-				setIsLoading(false);
-			}
-		}
-		if (query.length < 3) {
-			setMovies([]);
-			setError('');
-			return;
-		}
-		handleCloseMovie();
-		fetchMovies();
-
-		return function () {
-			controller.abort();
-		};
-	}, [query]);
 
 	return (
 		<>
@@ -143,19 +95,12 @@ const Logo = () => {
 const Search = ({ query, setQuery }) => {
 	const inputEl = useRef(null);
 	// zeby korzystać z useRef musimy użyć useEffect źeby zanmonoweć komponent który zawiera element DOM
-	useEffect(() => {
-		function callback(e) {
-			if (document.activeElement === inputEl.current) return;
-			if (e.code === 'Enter') {
-				inputEl.current.focus();
-				setQuery('');
-			}
-		}
 
-		document.addEventListener('keydown', callback);
-
-		return () => document.removeEventListener('keydown', callback);
-	}, [setQuery]);
+	useKey('Enter', () => {
+		if (document.activeElement === inputEl.current) return;
+		inputEl.current.focus();
+		setQuery('');
+	});
 
 	// useEffect(() => {
 	// 	const el = document.querySelector('.search');
@@ -265,25 +210,11 @@ const MovieDetails = ({ selectedId, onCloseMovie, onAddWatched, watched }) => {
 		onCloseMovie();
 	};
 
-	useEffect(() => {
-		function callback(e) {
-			if (e.code === 'Escape') {
-				onCloseMovie();
-				// console.log('CLOSING');
-			}
-		}
-
-		document.addEventListener('keydown', callback);
-
-		return function () {
-			document.removeEventListener('keydown', callback);
-		};
-	}, [onCloseMovie]);
+	useKey('Escape', onCloseMovie);
 
 	useEffect(() => {
-		setIsLoading(true);
-
 		async function getMovieDetails() {
+			setIsLoading(true);
 			const res = await fetch(`http://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}`);
 
 			const data = await res.json();
